@@ -1,0 +1,45 @@
+import alpaca_trade_api as tradeapi
+
+# Replace with your Alpaca API keys
+MASTER_API_KEY = 'YOUR_MASTER_API_KEY'
+MASTER_SECRET_KEY = 'YOUR_MASTER_SECRET_KEY'
+CLIENT_API_KEY = 'YOUR_CLIENT_API_KEY'
+CLIENT_SECRET_KEY = 'YOUR_CLIENT_SECRET_KEY'
+BASE_URL = 'https://paper-api.alpaca.markets'
+
+# Maximum allowed position size as a percentage of portfolio equity
+MAX_POSITION_SIZE_PERCENT = 10
+
+# Initialize the Alpaca API clients
+master_api = tradeapi.REST(MASTER_API_KEY, MASTER_SECRET_KEY, BASE_URL, api_version='v2')
+client_api = tradeapi.REST(CLIENT_API_KEY, CLIENT_SECRET_KEY, BASE_URL, api_version='v2')
+
+try:
+    # Get the open positions from the master account
+    master_positions = master_api.list_positions()
+
+    # Get the client account's portfolio equity
+    client_portfolio = client_api.get_account()
+    client_equity = float(client_portfolio.equity)
+
+    # Open the same positions in the client account
+    for position in master_positions:
+        try:
+            # Calculate maximum allowed position size based on risk management
+            max_position_size = client_equity * MAX_POSITION_SIZE_PERCENT / 100
+
+            if position.market_value <= max_position_size:
+                client_api.submit_order(
+                    symbol=position.symbol,
+                    qty=int(position.qty),
+                    side=position.side.lower(),
+                    type='market',
+                    time_in_force='gtc'
+                )
+                print(f"Successfully copied {position.qty} shares of {position.symbol} to client account.")
+            else:
+                print(f"Skipping {position.symbol} due to excessive position size risk.")
+        except tradeapi.rest.APIError as e:
+            print(f"Error copying {position.symbol} to client account: {e}")
+except tradeapi.rest.APIError as e:
+    print(f"Error accessing master account 
